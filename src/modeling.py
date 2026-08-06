@@ -3,6 +3,37 @@ from lmfit import Model
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import minmax_scale
 
+
+def sim_func(t, D_0, D_1, t_0, tau_1, tau_2):
+    delta = np.where(t < t_0, 0, 1)
+    
+    D = D_0 - D_1*delta*((t-t_0)/tau_1)*np.exp(-((t-t_0)/tau_2))
+    return D
+
+
+def model_fit(x, y):
+    x = np.linspace(0, len(y)/300, len(y))
+    gmodel = Model(sim_func)
+    params = gmodel.make_params()
+
+    params['D_1'].set(value=250.0, min=0.0, max=2000)
+    params['t_0'].set(value=0.3, min=0.0, max=6.0)
+    params['tau_1'].set(value=1.0, min=0.01, max=50.0)
+    params['tau_2'].set(value=0.8, min=0.01, max=50.0)
+    
+    result = gmodel.fit(y, params, t=x, D_0=y[0], weights=np.repeat([20.0, 0.2], [300, 1492]))
+
+    # plt.plot(x, y, '-')
+    # plt.plot(x, result.init_fit, '--', label='initial fit')
+    # plt.plot(x, result.best_fit, '-', label='best fit')
+    # plt.legend()
+    # sns.despine()
+    # plt.show()
+    
+    return result.best_values
+
+
+
 def sim_model(D_0, D_1, t_0, tau_1, tau_2, length):
     D = []
     for t in range(int(length)):
