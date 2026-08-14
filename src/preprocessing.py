@@ -130,7 +130,7 @@ def add_stim_columns(data, stim_windows, order_stim, trial_len, sampling_rate):
         stim_windows (list): list of tuples of stimulus onset and offset
         order_stim (list): list of tuples of category and valence for each stimulus presentation
         trial_len (int): length of trial of pupillary response (6 seconds, 300Hz, hence around 1800) -> 1792 is used since some trials are slightly shorter -> ensures all response are exactly the same length
-        sampling_rate (int, optional): sampling rate of eyetracking headset
+        sampling_rate (int): sampling rate of eyetracking headset
 
     Returns:
         pandas.DataFrame: dataset with added columns
@@ -188,6 +188,16 @@ def trials_only(data):
 
 
 def remove_bad_signals(data, column, threshold):
+    """ Removes 
+
+    Args:
+        data (_type_): _description_
+        column (_type_): _description_
+        threshold (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     for col in column:
         col_removed = f'{col}_removed'
         bad_ratio = data.groupby('id')[col_removed].transform('mean')
