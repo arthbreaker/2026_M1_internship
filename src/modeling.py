@@ -30,7 +30,7 @@ def model_fit(x, y):
     # sns.despine()
     # plt.show()
     
-    return result.best_values
+    return result.best_values, result.init_fit
 
 
 
