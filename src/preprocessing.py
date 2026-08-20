@@ -153,6 +153,17 @@ def add_stim_columns(data, stim_windows, order_stim, trial_len, sampling_rate):
 
 
 def smooth(data, stim_windows, column, lfreq):
+    """ Smooth the timeseries
+
+    Args:
+        data (pandas.DataFrame): A given timeseries
+        stim_windows (list): list of tuples of stimulus onset and offset
+        column (list): columns to apply the filter to
+        lfreq (int): low pass frequency
+
+    Returns:
+        pandas.DataFrame: returns the smoothed timeseries
+    """
     
     df_smooth = data.copy()
     for v in stim_windows:
