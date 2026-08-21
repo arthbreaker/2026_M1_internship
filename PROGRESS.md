@@ -43,8 +43,16 @@ I used a classical approach presented in the literature for pupil diameter analy
 ## Phase 2: Feature Extraction
 
 ### Objective:
+Aim is take the timeseries and extract variables from them that would be used for modelling later on
 
 ### Approach:
+The current approach is to just take variables straight from the timeseries. Next I would like to use mathematical models to extract variables and also explore alternative variables using feature engineering.
+
+### 1. Compute rolling average
+1. I computed the rolling average because even after doing the pre-processing of the timeseries, they were still noisy so I applied the rolling average to smooth them out more.
+
+### 2. Extract features
+1. Using pandas pd.groupby() function and .transform() I extracted the minimum, latency at the minimum, the maximum, latency at the maximum and the gradient of the response between 2 and 4 seconds.
 
 ### Figures:
 
@@ -88,6 +96,9 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 
 ### 4. Outlier detection
 1. Started by looking at scatter plots of max against latency of max and min against latency of min. I noticed that some of the trials had latency of min at 0 which wouldn't make sense. I noticed that this was because these were trials with blinks at the start. I therefore took the minimum at 50 time points after onset and 50 time points before offset. This also reduced the impact of blinks at the end of trials.
+
+### 3. Scaling
+1. Due to the probable influence of outliers in my dataset i chose to use the RobustScaler to scale with the median and not with the mean.
 
 ### Next Steps:
 - Use GroupKFolds
