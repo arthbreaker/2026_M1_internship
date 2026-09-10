@@ -38,6 +38,12 @@ I used a classical approach presented in the literature for pupil diameter analy
 
 ### Next Steps:
 - Review baseline correction and bad signals criteria
+
+### Ideas:
+- Potential exlcusion criteria could be the variance between 2 and 6 seconds. 
+- For blink detection you could include a buffer before onset and after offset to detect blinks at the start and at the end
+- Trim the first 50 frames to remove affect of early blinks
+- Baseline correction before blink detection? Could this help detect more blinks? Since you know it will set the starting point at 0. 
 ---
 
 ## Phase 2: Feature Extraction
@@ -103,3 +109,29 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 ### Next Steps:
 - Use GroupKFolds
 - Try data balancing to see if it affects performance
+- 1) I have my current dataset (26/08) and will use it to train models first time round. I will then find the model that works the best and use it as my reference. I will also train the models on the curve-fit variables to see if it improves.
+- 2) I will then improve my pre-processing pipeline (blink detection as such) and variables (consider RDY maybe) and retrain models to see. Also do the same for the curve-fitting, does the model improve and test other curve-fitting models as well.
+
+
+## Phase 4: Modelling
+
+### Objective:
+Train various models and see how they perform
+
+### Approach:
+The idea would be to train multiple classification models and then see how they each perform. I would then want to look into the models to see where they perform well or not, using ablation techniques. I also want to explore other methods presented in the DESU to test model performance.
+
+### 1. Training the models
+- I ran a first iteration running (SVM, RandomForestClassifier, etc...) and got the following results.
+
+### 2. Analysing mistakes
+- I wanted to see where the models were performing well and when they were failing
+1. 
+
+### 3. Check the data
+
+### Next Steps:
+- Look at the models
+- Look at the data
+  1) Under representation of groups (try test shuffle split)
+- Try with 'better' data

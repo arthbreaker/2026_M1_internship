@@ -4,58 +4,52 @@ from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import minmax_scale
 
 
-def sim_func(t, D_0, D_1, t_0, tau_1, tau_2):
+def sim_func(x, D_0, D_1, t_0, tau_1, tau_2):
+    t = np.linspace(0, x, x)
     delta = np.where(t < t_0, 0, 1)
-    
     D = D_0 - D_1*delta*((t-t_0)/tau_1)*np.exp(-((t-t_0)/tau_2))
+
     return D
 
 
-def model_fit(x, y):
-    x = np.linspace(0, len(y)/300, len(y))
+def sim_prf(x, D_0, t_0, n, t_max):
+    t = np.linspace(0, x, x)
+    delta = np.where(t < t_0, 0, 1)
+    D = D_0 - (delta*(t**n) * np.exp((-n*t)/t_max))
+
+    return D
+
+
+# c: peak amplitude
+# k and theta: shape and time of peak amplitude
+def sim_gamma(x, t_0, c, k, theta):
+    t = np.linspace(0, x, x)
+    delta = np.where(t < t_0, 0, 1)
+    D = -delta *c*(t**(k-1)*np.exp(-t/theta))
+    return D
+
+### Examples parameters
+# func = sim_func(x=1800, D_0=0, D_1=6, t_0=100, tau_1=20, tau_2=400)
+# prf = sim_prf(x=1800, D_0=0, t_0=100, n=0.8, t_max=300)
+# gamma = sim_gamma(x=400, t_0=50, c=0.4, k=3, theta=50)
+
+
+
+def model_fit(x, y, weight):
     gmodel = Model(sim_func)
-    params = gmodel.make_params()
-
-    params['D_1'].set(value=250.0, min=0.0, max=2000)
-    params['t_0'].set(value=0.3, min=0.0, max=6.0)
-    params['tau_1'].set(value=1.0, min=0.01, max=50.0)
-    params['tau_2'].set(value=0.8, min=0.01, max=50.0)
-    
-    result = gmodel.fit(y, params, t=x, D_0=y[0], weights=np.repeat([20.0, 0.2], [300, 1492]))
-
-    # plt.plot(x, y, '-')
-    # plt.plot(x, result.init_fit, '--', label='initial fit')
-    # plt.plot(x, result.best_fit, '-', label='best fit')
-    # plt.legend()
-    # sns.despine()
-    # plt.show()
-    
-    return result.best_values, result.init_fit
-
-
-
-def sim_model(D_0, D_1, t_0, tau_1, tau_2, length):
-    D = []
-    for t in range(int(length)):
-        delta = 1
-        if t < t_0:
-            delta = 0
-        D.append(D_0 - D_1*delta*((t-t_0)/tau_1)*np.exp(-((t-t_0)/tau_2)))
-    return D
-
-def model_fit(x, y):
-    gmodel = Model(sim_model)
     params = gmodel.make_params()
 
     params['D_1'].set(value=4.0, min=0.05, max=7.0)
     params['t_0'].set(value=20, min=0.0, max=200)
     params['tau_1'].set(value=10.0, min=7.0, max=20.0)
     params['tau_2'].set(value=400, min=100, max=800.0)
-    params['length'].set(value=len(x))
+    # params['length'].set(value=len(x))
 
-    result = gmodel.fit(y, params, x=x, D_0=y[10])
+    result = gmodel.fit(y, params, x=x, D_0=y.iloc[10], weights=weight)
+    return result.best_values, result.best_fit
 
-    return result.best_values
+
+
 
 def calc_mse(data, params):
     real = minmax_scale(data)

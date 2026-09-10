@@ -13,17 +13,21 @@ def extract_windows(data):
         list: list of tuples for onset and offset of the stimulus presentation
     """
     stim_windows = []
+    data['stim_window'] = 0
+
     stim_on = np.where(data.loc[:, 'Label']=='croix centrale=off')[0]+1
 
     for i, v in enumerate(stim_on):
         if pd.notna(data.loc[v, 'Label']):
+            data.loc[v:v+1791, 'stim_window'] = 1
             stim_windows.append((v, v+1791))
         else:
             j=0
             while pd.isna(data.loc[v+j, 'Label']):
                 j+=1
             stim_windows.append((v+j, v+j+1791))
-    return stim_windows
+            data[v+j:v+j+1791, 'stim_window'] = 1
+    return stim_windows, data
 
 
 def detect_blink(data, sampling_rate=300, ms2add=60):
@@ -59,6 +63,30 @@ def detect_blink(data, sampling_rate=300, ms2add=60):
         blink_windows[i] = (mid-blink_duration_extension, mid+blink_duration_extension)
 
     return blink_windows
+
+
+def detect_blink_pd(data):
+
+    data['blink'] = 0.0
+
+    indexes = data[data['RDY (pix)']==0].index.values
+    data.loc[indexes, 'blink'] = 1.0
+
+    return data
+
+
+def remove_blink_pd(data, sampling_rate, ms2add):
+    data = data.copy()
+    buffer = int(sampling_rate / 1000 * ms2add)
+    indexes = data[data.blink==1.0].index.values.tolist()
+
+    for i in indexes:
+        data.loc[i-buffer:i+buffer+20, 'RDY (pix)'] = np.nan
+
+    # data['RDY (pix)'] = data['RDY (pix)'].interpolate()
+    ## .rolling() does not need interpolation
+
+    return data
 
 
 def remove_blink_padding(data, blink_windows):
@@ -115,11 +143,18 @@ def extract_stim(data, stim_windows):
     Returns:
         list: list of tuples of category and valence for each stimulus presentation
     """
+    data['category'] = None
+    data['valence'] = None
+    data['trial'] = None
+
     order_stim = []
-    for stim in stim_windows:
+    for i, stim in enumerate(stim_windows):
         a = data.loc[stim[0], 'Label'].split('_')
         order_stim.append((a[1], a[2]))
-    return order_stim
+        data.loc[stim[0]:stim[1], 'trial'] = int(a[0])
+        data.loc[stim[0]:stim[1], 'category'] = a[1]
+        data.loc[stim[0]:stim[1], 'valence'] = a[2]
+    return order_stim, data.drop(columns='stim_window')
 
 
 def add_stim_columns(data, stim_windows, order_stim, trial_len, sampling_rate):
