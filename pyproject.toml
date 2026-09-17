@@ -16,4 +16,5 @@ dependencies = [
     "matplotlib>=3.11.1",
     "ipykernel>=7.3.0",
     "optuna>=4.9.0",
+    "imbalanced-learn>=0.14.2",
 ]

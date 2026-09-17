@@ -97,6 +97,8 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 |CTR  |          21          |          17        |       19.0          |
 
 
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/missing_conds.png)
+
 ### 3. Train_test_split
 1.  Before doing anything with the data I need to split it into train and test. GroupShuffleSplit was used to ensure that the same participant cannot be in both the train and test dataset. One issue is that I could get a test set with a condition being over or under represented. Need to look into whether I can fix this directly with GroupShuffleSplit or I need to use CV with k-fold iterations.
 
@@ -113,7 +115,7 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 - 2) I will then improve my pre-processing pipeline (blink detection as such) and variables (consider RDY maybe) and retrain models to see. Also do the same for the curve-fitting, does the model improve and test other curve-fitting models as well.
 
 
-## Phase 4: Modelling
+## Phase 4: Modelling phase 1
 
 ### Objective:
 Train various models and see how they perform
@@ -121,10 +123,49 @@ Train various models and see how they perform
 ### Approach:
 The idea would be to train multiple classification models and then see how they each perform. I would then want to look into the models to see where they perform well or not, using ablation techniques. I also want to explore other methods presented in the DESU to test model performance.
 
-### 1. Training the models
-- I ran a first iteration running (SVM, RandomForestClassifier, etc...) and got the following results.
+### 1. training dummy and reference model
+- I tried a dummy model with uniform strategy and LogisiticRegression model with the default parameters
 
-### 2. Analysing mistakes
+|         | DummyClassifier | LogisiticRegression |
+|:-------:|:---------------:|:-------------------:|
+|Score (%)|      25.23      |        33.33        |
+
+- We can see that the DummyClassifier performs at chance and the LogisticRegression just slightly better. I will use the LogisticRegression model as reference
+
+### 2. Training the models
+- I trained 6 models (SVC, RandomForestClassifier, LogisiticRegression, GradientBoostingClassifier, KNeighborsClassifier and AdaBoostClassifier) using a GridSearchCV on 7 outer iterations and 5 inner folds per iteration.
+- Below is the best score and corresponding for each of the 7 iterations for one of the GridSearchCV runs (scores vary between runs but remain in this range):
+
+|        |      Iteration 1     | Iteration 2 | Iteration 3 |         Iteration 4        |     Iteration 5    |       Iteration 6      |       Iteration 7      |
+|:------:|:--------------------:|:-----------:|:-----------:|:--------------------------:|:------------------:|:----------------------:|:----------------------:|
+|Score(%)|          20.00       |   33.33     |    25.56    |           27.78            |        32.22       |          13.33         |         14.44          |
+|Model   |  LogisticRegression  |     SVC     |     SVC     | GradientBoostingClassifier | LogisticRegression | RandomForestClassifier | RandomForestClassifier |
+
+- We can see that none of the optimised models perform better than the reference model.
+- I also tested the balanced accuracy scores which were all around 0 indicating that my model is simply guessing and not actually learning anything
+
+### 3. Look back at the data
+- Clearly the models are not performing well. Two reasons this could be: 1. wrong hyperparamater selection for GridSearch, 2. data is bad. I think the issue is more on the data than the hyperparameter tuning. One clear issue that stands out in my data is the inbalance in the size of the groups. As shown earlier there is 14 ACP compared to 23 AMN which creates a clear imbalance. When I looked into the kFold splits, some splits consistently contained more AMN then all other groups and sometimes had only 1 or 2 ACP patients in the training set. This is a clear issue.
+- I can think of two solutions to this issue: 1. The first to rebalance the data 2. Use the split=True in the GroupShuffleSplit to ensure an equal number of groups per split
+
+#### SMOTE algorithm for rebalancing
+- I used the imbalanced-learn library for rebalancing. Two algorithms are proposed for oversampling (SMOTE and ADASYN).
+- I first tested the SMOTE dataset. To ensure no data leakage it was applied only to the training dataset but I did a proof of concept on the original dataset. Doing so balanced out all my groups and increased my datapoints from 444 to 552. As you can see from the distributions below, after SMOTE balancing they remain the same but the groups are now balanced.
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/balanced_whole_dataset_barh.png)
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/balanced_whole_dataset_hist.png)
+
+#### Training models using SMOTE rebalancing
+- I used StratifiedGroupKFold() instead of GroupShuffleSplit() as it this method aims to have equal number of groups in train and test sets. This is important as I would want the test set to be balanced and then I would balance the train set myself.
+- 
+
+
+
+### 4. Fixing the imbalance
+
+
+### 3. Analysing mistakes
 - I wanted to see where the models were performing well and when they were failing
 1. 
 
