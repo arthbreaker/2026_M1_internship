@@ -157,8 +157,12 @@ The idea would be to train multiple classification models and then see how they 
 ![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/balanced_whole_dataset_hist.png)
 
 #### Training models using SMOTE rebalancing
-- I used StratifiedGroupKFold() instead of GroupShuffleSplit() as it this method aims to have equal number of groups in train and test sets. This is important as I would want the test set to be balanced and then I would balance the train set myself.
-- 
+- I used StratifiedGroupKFold() instead of GroupShuffleSplit() as it this method aims to have equal number of groups in train and test sets (stratified: maintaining class balance, group: keeps data from the same group seperate). This is important as I would want the test set to be balanced and then I would balance the train set myself.
+- I implemented rebalancing using the imblearn pipeline and the SMOTE algorithm which ensures that and did not get any better results :(
+
+
+#### Comparing umbalanced vs balanced results
+
 
 
 
