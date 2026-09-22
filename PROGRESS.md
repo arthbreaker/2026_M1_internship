@@ -164,14 +164,11 @@ The idea would be to train multiple classification models and then see how they 
 #### Comparing umbalanced vs balanced results
 
 
+#### Updating GridSearchCV
+- I realised I hadn't applied a specific scoring function to my GridSearchCV. This is not optmised and not suitable for my data. I looked at the sklearn documentation for different scoring methods.
+- I quickly saw that some scoring methods were not suitable for unbalanced datasets, such as accuracy. I ended up using the f1-macro scoring as it is not sensitive to unbalanced datasets as the macro version treats each condition the same and does not take their size into consideration.
 
 
-### 4. Fixing the imbalance
-
-
-### 3. Analysing mistakes
-- I wanted to see where the models were performing well and when they were failing
-1. 
 
 ### 3. Check the data
 

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy as sp
 from sklearn.preprocessing import OneHotEncoder
+from scipy.ndimage import binary_closing
 
 def extract_windows(data):
     """ Extracts the time windows during the stimulus presentation based on when the croix centrale=off in the label column
@@ -30,107 +31,169 @@ def extract_windows(data):
     return stim_windows, data
 
 
-def detect_blink(data, sampling_rate=300, ms2add=60):
-    """ Detects the blinks in each pupil response by applying a threshold determined by 1.5 times the mean of the pupil response
+def threshold(data, k):
+    N=len(data[data['RDX (pix)']!=0]['RDX (pix)']) # get the non-zero data points
+    p = data[data['RDX (pix)']!=0]['RDX (pix)'].sum()
+    t = k*(1/N)*p
 
-    Args:
-        data (pandas.DataFrame): singular pupillary response
-        sampling_rate (int, optional): sampling rate of eyetracking headset
-        ms2add (int, optional): padding added to detected blink. Defaults to 60ms
-
-    Returns:
-        list: list of tuples of blink onsets and offsets
-    """
-    mean = np.mean(data)/1.5
-    
-    # extract blink windows
-    blink_windows = []
-
-    blink_duration_extension = int(sampling_rate / 1000 * ms2add)
-    
-    # extract points that cross the threshold
-    blink = []
-    for i in range(len(data)-1):
-        if data.iloc[i]<=mean:
-            blink.append(i)
-            if data.iloc[i+1]>mean:
-                blink_windows.append((blink[0], blink[-1]))
-                blink = []
-    
-    # extract time window
-    for i in range(len(blink_windows)):
-        mid = (blink_windows[i][1] - blink_windows[i][0])//2 + blink_windows[i][1]
-        blink_windows[i] = (mid-blink_duration_extension, mid+blink_duration_extension)
-
-    return blink_windows
-
-
-def detect_blink_pd(data):
-
-    data['blink'] = 0.0
-
-    indexes = data[data['RDY (pix)']==0].index.values
-    data.loc[indexes, 'blink'] = 1.0
+    data['M'] = 0
+    data.loc[data['RDX (pix)'] <= t, 'M'] = 1
 
     return data
 
 
-def remove_blink_pd(data, sampling_rate, ms2add):
-    data = data.copy()
-    buffer = int(sampling_rate / 1000 * ms2add)
-    indexes = data[data.blink==1.0].index.values.tolist()
-
-    for i in indexes:
-        data.loc[i-buffer:i+buffer+20, 'RDY (pix)'] = np.nan
-
-    # data['RDY (pix)'] = data['RDY (pix)'].interpolate()
-    ## .rolling() does not need interpolation
+def fill_blinks(data, blink_shape):
+    blink_binary = data['M'].values 
+    data['M'] = pd.DataFrame(binary_closing(blink_binary, structure=np.ones(blink_shape)).astype(int))
 
     return data
 
 
-def remove_blink_padding(data, blink_windows):
-    """ Replaces values where blinks are detected to NaNs
-
-    Args:
-        data (pandas.DataFrame): dataset
-        blink_windows (list): list of tuples of blink onsets and offsets
-
-    Returns:
-        pandas.DataFrame: returns dataset with NaNs where blinks are
-    """
-    for j in blink_windows:
-        data.iloc[j[0]-15: j[1]+15, :] = np.nan
+def detect_blink(data, k, blink_shape):
+    data = threshold(data, k)
+    data = fill_blinks(data, blink_shape)
     
-    nan_proportion = np.sum(np.isnan(data.iloc[:, 0]))/len(data.iloc[:, 0])
+    data['onset'] = (data['M'].diff() == 1).astype(int)
+    data['offset'] = (data['M'].diff() == -1).astype(int)
 
-    if nan_proportion > 0.3:
-        data.iloc[:, :] = np.nan
-        return data
-    else:
-        return data
+    data = data.drop(columns='M')
+
+    return data
 
 
-def remove_blink(data, stim_windows):
-    """ Detects blink, removes blink and interpolates blink
+def dynamic_threshold(data, onset_buffer, offset_buffer):
+    data['blinks'] = 0
 
-    Args:
-        data (pandas.DataFrame): dataset
-        stim_windows (list): list of tuples of stimulus onset and offset
+    onset_idx = data['onset'][data['onset']==1].index.values
+    offset_idx = data['offset'][data['offset']==1].index.values
 
-    Returns:
-        pandas.DataFrame: dataset with detected, removed and interpolated blinks
-    """
-    df_clean = data.copy()
-    for v in stim_windows:
-        blinks = detect_blink(df_clean.loc[v[0]:v[1], 'RDX (pix)'])
-        if blinks:
-            df_clean.iloc[v[0]:v[1], :] = remove_blink_padding(df_clean.iloc[v[0]:v[1], :], blinks)
-            try:
-                df_clean.iloc[v[0]:v[1], :] = df_clean.iloc[v[0]:v[1], :].interpolate(method='linear')
-            except IndexError:
-                continue
-    return df_clean
+    data['onset'] = 0
+    data['offset'] = 0
+
+    for i in range(len(offset_idx)):
+        #onset
+        onset_pos = onset_idx[i]
+
+        new_onset = data.loc[onset_pos-onset_buffer: onset_pos, 'RDX_smoothed'].argmax()
+        # data.loc[onset_pos, 'onset'] = 0
+        data.loc[onset_pos - (onset_buffer+new_onset), 'onset'] = 1
+
+        #offset
+        offset_pos = offset_idx[i]
+
+        new_offset = data.loc[offset_pos: offset_pos+offset_buffer, 'RDX_smoothed'].argmax()
+        # data.loc[offset_pos, 'offset'] = 0
+        data.loc[offset_pos + new_offset, 'offset'] = 1
+
+        data.loc[(onset_pos - (onset_buffer+new_onset)): (offset_pos + new_offset), 'blinks'] = 1
+
+    return data
+
+    
+
+
+
+# def detect_blink(data, sampling_rate=300, ms2add=60):
+#     """ Detects the blinks in each pupil response by applying a threshold determined by 1.5 times the mean of the pupil response
+
+#     Args:
+#         data (pandas.DataFrame): singular pupillary response
+#         sampling_rate (int, optional): sampling rate of eyetracking headset
+#         ms2add (int, optional): padding added to detected blink. Defaults to 60ms
+
+#     Returns:
+#         list: list of tuples of blink onsets and offsets
+#     """
+#     mean = np.mean(data)/1.5
+    
+#     # extract blink windows
+#     blink_windows = []
+
+#     blink_duration_extension = int(sampling_rate / 1000 * ms2add)
+    
+#     # extract points that cross the threshold
+#     blink = []
+#     for i in range(len(data)-1):
+#         if data.iloc[i]<=mean:
+#             blink.append(i)
+#             if data.iloc[i+1]>mean:
+#                 blink_windows.append((blink[0], blink[-1]))
+#                 blink = []
+    
+#     # extract time window
+#     for i in range(len(blink_windows)):
+#         mid = (blink_windows[i][1] - blink_windows[i][0])//2 + blink_windows[i][1]
+#         blink_windows[i] = (mid-blink_duration_extension, mid+blink_duration_extension)
+
+#     return blink_windows
+
+
+# def detect_blink_pd(data):
+
+#     data['blink'] = 0.0
+
+#     indexes = data[data['RDY (pix)']==0].index.values
+#     data.loc[indexes, 'blink'] = 1.0
+
+#     return data
+
+
+# def remove_blink_pd(data, sampling_rate, ms2add):
+#     data = data.copy()
+#     buffer = int(sampling_rate / 1000 * ms2add)
+#     indexes = data[data.blink==1.0].index.values.tolist()
+
+#     for i in indexes:
+#         data.loc[i-buffer:i+buffer+20, ['LDX (pix)', 'LDY (pix)', 'RDX (pix)', 'RDY (pix)']] = np.nan
+
+#     # data['RDY (pix)'] = data['RDY (pix)'].interpolate()
+#     ## .rolling() does not need interpolation
+
+#     return data
+
+
+# def remove_blink_padding(data, blink_windows):
+#     """ Replaces values where blinks are detected to NaNs
+
+#     Args:
+#         data (pandas.DataFrame): dataset
+#         blink_windows (list): list of tuples of blink onsets and offsets
+
+#     Returns:
+#         pandas.DataFrame: returns dataset with NaNs where blinks are
+#     """
+#     for j in blink_windows:
+#         data.iloc[j[0]-15: j[1]+15, :] = np.nan
+    
+#     nan_proportion = np.sum(np.isnan(data.iloc[:, 0]))/len(data.iloc[:, 0])
+
+#     if nan_proportion > 0.3:
+#         data.iloc[:, :] = np.nan
+#         return data
+#     else:
+#         return data
+
+
+# def remove_blink(data, stim_windows):
+#     """ Detects blink, removes blink and interpolates blink
+
+#     Args:
+#         data (pandas.DataFrame): dataset
+#         stim_windows (list): list of tuples of stimulus onset and offset
+
+#     Returns:
+#         pandas.DataFrame: dataset with detected, removed and interpolated blinks
+#     """
+#     df_clean = data.copy()
+#     for v in stim_windows:
+#         blinks = detect_blink(df_clean.loc[v[0]:v[1], 'RDX (pix)'])
+#         if blinks:
+#             df_clean.iloc[v[0]:v[1], :] = remove_blink_padding(df_clean.iloc[v[0]:v[1], :], blinks)
+#             try:
+#                 df_clean.iloc[v[0]:v[1], :] = df_clean.iloc[v[0]:v[1], :].interpolate(method='linear')
+#             except IndexError:
+#                 continue
+#     return df_clean
 
 
 def extract_stim(data, stim_windows):
