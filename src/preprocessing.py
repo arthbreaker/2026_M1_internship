@@ -4,6 +4,33 @@ import scipy as sp
 from sklearn.preprocessing import OneHotEncoder
 from scipy.ndimage import binary_closing
 
+# def extract_windows(data):
+#     """ Extracts the time windows during the stimulus presentation based on when the croix centrale=off in the label column
+
+#     Args:
+#         data (pandas.DataFrame): dataset
+
+#     Returns:
+#         list: list of tuples for onset and offset of the stimulus presentation
+#     """
+#     stim_windows = []
+#     data['stim_window'] = 0
+
+#     stim_on = np.where(data.loc[:, 'Label']=='croix centrale=off')[0]+1
+
+#     for i, v in enumerate(stim_on):
+#         if pd.notna(data.loc[v, 'Label']):
+#             data.loc[v:v+1791, 'stim_window'] = 1
+#             stim_windows.append((v, v+1791))
+#         else:
+#             j=0
+#             while pd.isna(data.loc[v+j, 'Label']):
+#                 j+=1
+#             stim_windows.append((v+j, v+j+1791))
+#             data[v+j:v+j+1791, 'stim_window'] = 1
+#     return stim_windows, data
+
+
 def extract_windows(data):
     """ Extracts the time windows during the stimulus presentation based on when the croix centrale=off in the label column
 
@@ -13,22 +40,28 @@ def extract_windows(data):
     Returns:
         list: list of tuples for onset and offset of the stimulus presentation
     """
-    stim_windows = []
-    data['stim_window'] = 0
 
-    stim_on = np.where(data.loc[:, 'Label']=='croix centrale=off')[0]+1
+    data['trial'] = 0
+    data['category'] = np.nan
+    data['valence'] = np.nan
 
-    for i, v in enumerate(stim_on):
-        if pd.notna(data.loc[v, 'Label']):
-            data.loc[v:v+1791, 'stim_window'] = 1
-            stim_windows.append((v, v+1791))
-        else:
-            j=0
-            while pd.isna(data.loc[v+j, 'Label']):
-                j+=1
-            stim_windows.append((v+j, v+j+1791))
-            data[v+j:v+j+1791, 'stim_window'] = 1
-    return stim_windows, data
+    data['category'] = data['category'].astype('object')
+    data['valence'] = data['valence'].astype('object')
+
+    cond = data.loc[(data['Label'].str.contains('_')) & (data['Label'].str.endswith('on')), 'Label']
+    index = cond.index
+    category = cond.to_string().split('_')[1::3]
+    valence = cond.to_string().split('_')[2::3]
+
+
+    for i, start in enumerate(index):
+        data.loc[start:start+1791, 'trial'] = i
+        data.loc[start:start+1791, 'category'] = category[i]
+        data.loc[start:start+1791, 'valence'] = valence[i]
+
+    data = data.drop(columns='Label')
+
+    return data 
 
 
 def threshold(data, k):
@@ -56,7 +89,7 @@ def detect_blink(data, k, blink_shape):
     data['onset'] = (data['M'].diff() == 1).astype(int)
     data['offset'] = (data['M'].diff() == -1).astype(int)
 
-    data = data.drop(columns='M')
+    # data = data.drop(columns='M')
 
     return data
 
