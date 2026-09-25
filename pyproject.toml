@@ -17,4 +17,5 @@ dependencies = [
     "ipykernel>=7.3.0",
     "optuna>=4.9.0",
     "imbalanced-learn>=0.14.2",
+    "statsmodels>=0.15.0",
 ]

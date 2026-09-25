@@ -3,6 +3,8 @@ import pandas as pd
 import scipy as sp
 from sklearn.preprocessing import OneHotEncoder
 from scipy.ndimage import binary_closing
+import re
+import statsmodels.api as sm
 
 # def extract_windows(data):
 #     """ Extracts the time windows during the stimulus presentation based on when the croix centrale=off in the label column
@@ -31,7 +33,7 @@ from scipy.ndimage import binary_closing
 #     return stim_windows, data
 
 
-def extract_windows(data):
+def extract_trials(data):
     """ Extracts the time windows during the stimulus presentation based on when the croix centrale=off in the label column
 
     Args:
@@ -41,9 +43,10 @@ def extract_windows(data):
         list: list of tuples for onset and offset of the stimulus presentation
     """
 
-    data['trial'] = 0
+    data['trial'] = np.nan
     data['category'] = np.nan
     data['valence'] = np.nan
+    data['time'] = 0.0
 
     data['category'] = data['category'].astype('object')
     data['valence'] = data['valence'].astype('object')
@@ -53,13 +56,14 @@ def extract_windows(data):
     category = cond.to_string().split('_')[1::3]
     valence = cond.to_string().split('_')[2::3]
 
+    x = np.linspace(0, 1792, 1792)
+
 
     for i, start in enumerate(index):
         data.loc[start:start+1791, 'trial'] = i
         data.loc[start:start+1791, 'category'] = category[i]
         data.loc[start:start+1791, 'valence'] = valence[i]
-
-    data = data.drop(columns='Label')
+        data.loc[start:start+1791, 'time'] = x
 
     return data 
 
@@ -103,22 +107,26 @@ def dynamic_threshold(data, onset_buffer, offset_buffer):
     data['onset'] = 0
     data['offset'] = 0
 
+    
     for i in range(len(offset_idx)):
-        #onset
-        onset_pos = onset_idx[i]
+        try:
+            #onset
+            onset_pos = onset_idx[i]
 
-        new_onset = data.loc[onset_pos-onset_buffer: onset_pos, 'RDX_smoothed'].argmax()
-        # data.loc[onset_pos, 'onset'] = 0
-        data.loc[onset_pos - (onset_buffer+new_onset), 'onset'] = 1
+            new_onset = data.loc[onset_pos-onset_buffer: onset_pos, 'RDX_smoothed'].argmax()
+            # data.loc[onset_pos, 'onset'] = 0
+            data.loc[onset_pos - (onset_buffer+new_onset), 'onset'] = 1
 
-        #offset
-        offset_pos = offset_idx[i]
+            #offset
+            offset_pos = offset_idx[i]
 
-        new_offset = data.loc[offset_pos: offset_pos+offset_buffer, 'RDX_smoothed'].argmax()
-        # data.loc[offset_pos, 'offset'] = 0
-        data.loc[offset_pos + new_offset, 'offset'] = 1
+            new_offset = data.loc[offset_pos: offset_pos+offset_buffer, 'RDX_smoothed'].argmax()
+            # data.loc[offset_pos, 'offset'] = 0
+            data.loc[offset_pos + new_offset, 'offset'] = 1
 
-        data.loc[(onset_pos - (onset_buffer+new_onset)): (offset_pos + new_offset), 'blinks'] = 1
+            data.loc[(onset_pos - (onset_buffer+new_onset)): (offset_pos + new_offset), 'blinks'] = 1
+        except KeyError:
+            print(offset_pos, offset_buffer)
 
     return data
 
@@ -283,32 +291,59 @@ def add_stim_columns(data, stim_windows, order_stim, trial_len, sampling_rate):
     return data
 
 
-def smooth(data, stim_windows, column, lfreq):
-    """ Smooth the timeseries
+# def smooth(data, stim_windows, column, lfreq):
+#     """ Smooth the timeseries
 
-    Args:
-        data (pandas.DataFrame): A given timeseries
-        stim_windows (list): list of tuples of stimulus onset and offset
-        column (list): columns to apply the filter to
-        lfreq (int): low pass frequency
+#     Args:
+#         data (pandas.DataFrame): A given timeseries
+#         stim_windows (list): list of tuples of stimulus onset and offset
+#         column (list): columns to apply the filter to
+#         lfreq (int): low pass frequency
 
-    Returns:
-        pandas.DataFrame: returns the smoothed timeseries
-    """
+#     Returns:
+#         pandas.DataFrame: returns the smoothed timeseries
+#     """
     
-    df_smooth = data.copy()
-    for v in stim_windows:
-        for col in column:
-            sos = sp.signal.butter(5, Wn=lfreq, fs=300, btype='low', output='sos')
-            df_smooth.loc[v[0]:v[1], col] = sp.signal.sosfiltfilt(sos, df_smooth.loc[v[0]:v[1], col])
-    return df_smooth
+#     df_smooth = data.copy()
+#     for v in stim_windows:
+#         for col in column:
+#             sos = sp.signal.butter(5, Wn=lfreq, fs=300, btype='low', output='sos')
+#             df_smooth.loc[v[0]:v[1], col] = sp.signal.sosfiltfilt(sos, df_smooth.loc[v[0]:v[1], col])
+#     return df_smooth
 
 
-def baseline_correct(data, stim_windows, column):
-    for col in column:
-        for v in stim_windows:
-            mean = np.mean(data.loc[v[0]-60:v[0], col])
-            data.loc[v[0]:v[1], col] = data.loc[v[0]:v[1], col]-mean
+def smooth(data):
+    col = ['LDX (pix)', 'LDY (pix)', 'RDX (pix)', 'RDY (pix)']
+    sos = sp.signal.butter(8, Wn=3, fs=300, btype='low', output='sos')
+    data[col] = data[col].interpolate()
+
+    for i in col:
+        data[i] = sp.signal.sosfiltfilt(sos, data[i])
+
+    data.loc[data['blinks']==1, col] = np.nan
+
+    return data
+
+
+# def smooth(data):
+#     lowess = sm.nonparametric.lowess
+#     x = data.loc[0:1791, 'time']
+#     stim_idx = data[data['trial'].notna()]['trial'].index[::1792]
+
+#     for i in stim_idx:
+#         y = data.loc[i:i+1791, 'RDX (pix)']
+#         data.loc[i:i+1791, 'RDX (pix)'] = lowess(y, x, frac=0.4, it=0, return_sorted=False)
+
+#     return data
+
+
+def baseline_correct(data):
+    col = ['LDX (pix)', 'LDY (pix)', 'RDX (pix)', 'RDY (pix)']
+    stim_idx = data[data['trial'].notna()]['trial'].index[::1792]
+
+    for i in stim_idx:
+        mean = data.loc[i-60:i, col].mean()
+        data.loc[i:i+1792, col] = data.loc[i:i+1792, col]-mean
 
     return data
 
@@ -354,3 +389,38 @@ def one_hot_encoder(data):
     data_ohe = pd.concat([data, ohetransform], axis=1).drop(columns=['LDX (pix)_removed', 'LDY (pix)_removed', 'RDX (pix)_removed', 'RDY (pix)_removed'])
 
     return data_ohe
+
+
+def run_pipeline(path, k):
+    pps_data = pd.DataFrame(columns=['condition', 'id', 'time', 'LDX (pix)', 'LDY (pix)', 'RDX (pix)', 'RDY (pix)', 'category', 'valence'])
+
+    for i, x in enumerate(path.iterdir()):
+        try:
+            df = pd.read_csv(x, sep=';', skiprows=21, encoding='latin-1')
+            split = re.split(r'_| ', str(x))
+            df['condition'] = split[2]
+            df['id'] = f'{split[2]}_{split[3]}'
+
+            print(f'starting {split[2]}_{split[3]} {i}')
+
+            # detect and remove blinks (dynamic thresholding)
+            df = detect_blink(df, k, blink_shape=10)
+            df['RDX_smoothed'] = df['RDX (pix)'].rolling(window=10, win_type='gaussian').mean(std=2)
+            df = dynamic_threshold(df, 20, 35)
+            df.loc[df['blinks']==1, ['LDX (pix)', 'LDY (pix)', 'RDX (pix)', 'RDY (pix)', 'RDX_smoothed']] = np.nan
+
+            # section and baseline correct
+            df = extract_trials(df)
+            # df = smooth(df)
+            df = baseline_correct(df)
+
+            # select only valid data
+            df = df[df['category'].notna()]
+
+            pps_data = pd.concat([pps_data, df.loc[:, ['condition', 'id', 'time', 'LDX (pix)', 'LDY (pix)', 'RDX (pix)', 'RDY (pix)', 'category', 'valence']]])
+        except ValueError:
+            print(x)
+
+    pps_data = pps_data.reset_index().drop(columns='index')
+
+    return pps_data
