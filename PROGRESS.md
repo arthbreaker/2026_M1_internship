@@ -1,7 +1,7 @@
 # Project Progress & Decisions
 
 ## Overview
-This document tracks the key steps, decisions, and findings throughout the project. Figures are stored in the `figures/` folder.
+This document tracks the key steps, decisions, and findings throughout the project. Figures are stored in the `figures/initial_exploration/` folder.
 
 ---
 
@@ -80,12 +80,12 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 ### 2. Handling missing data
 1. I first looked at how much data was missing per eye-coordinate recording (RDX, RDY, LDX, LDY)
 
-![Barplot showing the percentage of missing data per eye-coordingate recording](figures/missing_pupil.png)
+![Barplot showing the percentage of missing data per eye-coordingate recording](figures/initial_exploration/missing_pupil.png)
 
 - I chose to focuse my analysis on only the RDX data as it had the least amount of missing data
 2. I then looked at to see how much missing data there was per condition within the RDX data
 
-![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/missing_rdx.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/missing_rdx.png)
 
 3. I removed all of the rows where I had NaNs for the RDX data only. The table shows the effect of removing this data. The table shows the number of participants there was for each condition before and after removing the NaN rows.
 
@@ -97,7 +97,7 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 |CTR  |          21          |          17        |       19.0          |
 
 
-![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/missing_conds.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/missing_conds.png)
 
 ### 3. Train_test_split
 1.  Before doing anything with the data I need to split it into train and test. GroupShuffleSplit was used to ensure that the same participant cannot be in both the train and test dataset. One issue is that I could get a test set with a condition being over or under represented. Need to look into whether I can fix this directly with GroupShuffleSplit or I need to use CV with k-fold iterations.
@@ -115,7 +115,7 @@ I planned out the main steps I wanted do which included cleaning the data (deali
 - 2) I will then improve my pre-processing pipeline (blink detection as such) and variables (consider RDY maybe) and retrain models to see. Also do the same for the curve-fitting, does the model improve and test other curve-fitting models as well.
 
 
-## Phase 4: Modelling phase 1
+## Phase 4: Modelling using recorded data
 
 ### Objective:
 Train various models and see how they perform
@@ -152,13 +152,13 @@ The idea would be to train multiple classification models and then see how they 
 - I used the imbalanced-learn library for rebalancing. Two algorithms are proposed for oversampling (SMOTE and ADASYN).
 - I first tested the SMOTE dataset. To ensure no data leakage it was applied only to the training dataset but I did a proof of concept on the original dataset. Doing so balanced out all my groups and increased my datapoints from 444 to 552. As you can see from the distributions below, after SMOTE balancing they remain the same but the groups are now balanced.
 
-![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/balanced_whole_dataset_barh.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/balanced_whole_dataset_barh.png)
 
-![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/balanced_whole_dataset_hist.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/balanced_whole_dataset_hist.png)
 
 #### Training models using SMOTE rebalancing
 - I used StratifiedGroupKFold() instead of GroupShuffleSplit() as it this method aims to have equal number of groups in train and test sets (stratified: maintaining class balance, group: keeps data from the same group seperate). This is important as I would want the test set to be balanced and then I would balance the train set myself.
-- I implemented rebalancing using the imblearn pipeline and the SMOTE algorithm which ensures that and did not get any better results :(
+- I implemented rebalancing using the imblearn pipeline and the SMOTE algorithm which ensures that and did not get any better results
 
 
 #### Comparing umbalanced vs balanced results
@@ -170,10 +170,152 @@ The idea would be to train multiple classification models and then see how they 
 
 
 
-### 3. Check the data
+### 4. Check the data
+- I wanted to update my preprocessing pipeline. I updated the blink detection using the dynamic threhsholding method described in Khodami, 2025. I also improved the efficiency by utilising pandas in more depth. The original pipeline ran in 15 minutes and the improved version in 40 seconds.
+- The first observation was to compare whether the second pipeline extracted blinks more efficiently than the first. At visual glance it seems so but it highly dependent on the recording.
+
+![](figures/initial_exploration/old_new_method3.png)
+![](figures/initial_exploration/old_new_method4.png)
+![](figures/initial_exploration/old_new_method5.png)
+
+- One interesting difference between the two pipelines was the extracted responses were not always the same. That is for some participants, the responses between each valence conditions was not of the same order
+- One clear, visual improvement in the second dataset is that there aren't nearly as meany baseline error problems, probably due to the improved removal of blinks. Whereas in the first dataset many of the responses were offset from 0, due to blinks just before the response, the second dataset does not suffer from this issue.
+- Another change I made was in the smoothing technique used. Originally I applied a butterworth lowpass filter at 15Hz and a rolling average. However, I felt that the lowpass filter still kept a lot of the high frequency activity. I tested different frequency thresholds as well as higher orders but this did not help. This is why I changed to a LOWESS filter.
+- First data set kept 444 recordings (74 participants), second kept 516 (86 participants)
+
+
+
+### 5. Run models again with new data
+- I extracted the same variables to have a direct comparison between the two datasets and ran the same grid search. Below are the results
+
+#### Unbalanced
+
+|           |   Iteration 1  | Iteration 2 | Iteration 3 |  Iteration 4 |  Iteration 5  |
+|:---------:|:--------------:|:-----------:|:-----------:|:------------:|:-------------:|
+|Balanced accuracy(%)|   -0.11   |   0.06   |  -0.01  |  -0.02  | 0.02 |
+|f1-macro(%)|  16.58  |  29.45  |  24.54  |  21.06  |  26.67 |
+|Model  |  RandomForestClassifier  |  RandomForestClassifier |  KNeighborsClassifier  |  LogisticRegression  | RandomForestClassifier  |
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset2_unbalanced_cm.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset2_unbalanced_learningcurve.png)
+
+#### Balanced
+
+|           |      Iteration 1     | Iteration 2 | Iteration 3 |         Iteration 4        |     Iteration 5    |
+|:---------:|:--------------------:|:-----------:|:-----------:|:--------------------------:|:------------------:|
+|Accuracy(%)|     26.85       |   33.33   |    39.22    |           21.57            |        21.57       |
+|f1-macro(%)|     23.39       |   29.37    |    38.51    |           21.16            |        21.17       |
+|balanced accuracy(%)|  0.00 |  0.09  |  0.20  |   -0.05   |   -0.05   |
+|Model      |  LogisticRegression  |     LogisticRegression     |     LogisticRegression     | GradientBoostingClassifier | RandomForestClassifier |
+
+
+
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset2_balanced_cm.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset2_balanced_learningcurve.png)
+
+
+### 6. Increasing number of variables
+- I wanted to include data on the vertical pupil diameter. Up until now I was only using the horizontal pupil diameter. I extracted the same variables in the vertical as I did in the horizontal. I further computed variables of the whole eye (pi*RDX*RDY)
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset3_balanced_cm.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset3_balanced_learningcurve.png)
+
+
+
+### 7. Using quantile transformer
+#### Unbalanced
+- The quantile transformer assures that all variables have a given distribution, normal or uniform. Since my data is highly skewed this could be interesting since it has been shown that models tend to perform better when features are normally distributed
+
+|           |      Iteration 1     | Iteration 2 | Iteration 3 |         Iteration 4        |     Iteration 5    |
+|:---------:|:--------------------:|:-----------:|:-----------:|:--------------------------:|:------------------:|
+|f1-macro(%)|          17.85       |   29.44   |    23.63    |    21.34     |        27.94       |
+|balanced accuracy(%)|       -0.09       |   0.06    |    0.03    |           -0.02            |        0.04       |
+|Model      |  RandomForestClassifier  |     RandomForestClassifier     |     LogisticRegression     | LogisticRegression | GradientBoostingClassifier |
+
+#### Balanced
+
+|           |      Iteration 1     | Iteration 2 | Iteration 3 |  Iteration 4   |     Iteration 5    |
+|:---------:|:--------------------:|:-----------:|:-----------:|:----------------------:|:------------------:|
+|f1-macro(%)|    22.29    |   21.20   |    32.42    |    18.98     |    15.04    |
+|balanced accuracy(%)|       -0.02       |   -0.05    |    0.10    |  -0.09  |  -0.09  |
+|Model      |  SVC  |  GradientBoostingClassifier | SVC  | SVC | RandomForestClassifier |
+
+
+## Phase 4: Modelling using fitted data
+
+#### Curve fit data with original dataset (balanced)
+|           |      Iteration 1     | Iteration 2 | Iteration 3 |         Iteration 4        |     Iteration 5    |
+|:---------:|:--------------------:|:-----------:|:-----------:|:--------------------------:|:------------------:|
+|Accuracy(%)|          23.33       |   16.67     |    26.67    |           20.00            |        28.57       |
+|f1-macro(%)|          21.93       |   16.08    |    24.60    |           20.27            |        27.36       |
+|Model      |  RandomForestClassifier  |     GradientBoostingClassifier     |     RandomForestClassifier     | GradientBoostingClassifier | AdaBoostClassifier |
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset1_curvefit_balanced_cm.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset1_curvefit_balanced_learningcurve.png)
+
+
+#### LOWESS curve fit data (balanced)
+|           |      Iteration 1     | Iteration 2 | Iteration 3 |         Iteration 4        |     Iteration 5    |
+|:---------:|:--------------------:|:-----------:|:-----------:|:--------------------------:|:------------------:|
+|Accuracy(%)|          15.74       |   31.37     |    28.43    |           24.45            |        28.43       |
+|f1-macro(%)|          12.87       |   26.96    |    27.47    |           21.62            |        28.01       |
+|Model      |  GradientBoostingClassifier  |     LogisticRegression     |     LogisticRegression     | LogisticRegression | RandomForestClassifier |
+
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset2_curvefit_balanced_cm.png)
+![Barplot showing the percentage of missing data per condition in the RDX recordings](figures/initial_exploration/dataset2_curvefit_balanced_learningcurve.png)
+
+
+
+## Phase 5: Improving modelling and analysing errors
+- After the analysis done above two models were chosen for subsequent analysis based on their performance on the chosen metrics. This included the LinearRegression model trained on a balanced dataset with a RobustScaler and the SVM trained on the balanced dataset with a QuantileTransformer.
+
+#### balanced & RobustScaler
+
+|                   | f1-macro | Balanced accuracy | Precision | Recall | 
+|:-----------------:|:--------:|:--------:|:---------:|:------:|
+|LogisticRegression | 38.51 | 0.20 | 
+|        SVC        | 29.41 | 0.05 |
+
+'clf': LogisticRegression(random_state=42),
+  'clf__C': inf,
+  'clf__l1_ratio': 0,
+  'clf__max_iter': 500,
+  'clf__solver': 'lbfgs'
+
+
+#### balanced & QuantileTransformer
+
+|                   | f1-macro | Balanced accuracy | Precision | Recall | 
+|:-----------------:|:--------:|:--------:|:---------:|:------:|
+|        SVC1        | 33.33 | 0.10 |
+|        SVC2        | 32.35 | 0.11 |
+
+
+'clf1': SVC(random_state=42),
+  'clf__C': 10,
+  'clf__degree': 2,
+  'clf__gamma': 'scale',
+  'clf__kernel': 'linear'
+
+
+'clf': SVC2(random_state=42),
+  'clf__C': 10,
+  'clf__degree': 2,
+  'clf__gamma': 'scale',
+  'clf__kernel': 'rbf'
+
+
 
 ### Next Steps:
 - Look at the models
 - Look at the data
   1) Under representation of groups (try test shuffle split)
 - Try with 'better' data
+
+log-odd ratio (look into log odd ratio vs sigmoid)
+- premier ordre -> remove one variable and see classification
+- deuxieme ordre -> remove two variables and see classification
+
+
+CTR against the rest

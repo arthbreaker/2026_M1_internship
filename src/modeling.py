@@ -46,9 +46,21 @@ def model_fit(x, y, weight):
     # params['length'].set(value=len(x))
 
     result = gmodel.fit(y, params, x=x, D_0=y.iloc[10], weights=weight)
-    return result.best_values, result.best_fit
+    return result.best_values
 
 
+def model_fit_nans(x, y, weight):
+    gmodel = Model(sim_func, nan_policy='omit')
+    params = gmodel.make_params()
+
+    params['D_1'].set(value=4.0, min=0.05, max=7.0)
+    params['t_0'].set(value=20, min=0.0, max=200)
+    params['tau_1'].set(value=10.0, min=7.0, max=20.0)
+    params['tau_2'].set(value=400, min=100, max=800.0)
+    # params['length'].set(value=len(x))
+
+    result = gmodel.fit(y, params, x=x, D_0=y.iloc[10], weights=weight)
+    return result.best_values, result.best_fit  
 
 
 def calc_mse(data, params):

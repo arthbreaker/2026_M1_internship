@@ -386,7 +386,7 @@ def remove_bad_signals(data, column, threshold):
 def one_hot_encoder(data):
     ohe = OneHotEncoder(sparse_output=False).set_output(transform="pandas")
     ohetransform = ohe.fit_transform(data[['category', 'valence']])
-    data_ohe = pd.concat([data, ohetransform], axis=1).drop(columns=['LDX (pix)_removed', 'LDY (pix)_removed', 'RDX (pix)_removed', 'RDY (pix)_removed'])
+    data_ohe = pd.concat([data, ohetransform], axis=1)
 
     return data_ohe
 

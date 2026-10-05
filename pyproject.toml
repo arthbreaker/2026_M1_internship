@@ -18,4 +18,5 @@ dependencies = [
     "optuna>=4.9.0",
     "imbalanced-learn>=0.14.2",
     "statsmodels>=0.15.0",
+    "joblib>=1.5.3",
 ]
